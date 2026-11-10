@@ -2,6 +2,11 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y [versionado semántico](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Cambiado
+- README orientado a la entrega del taller: identificación de la línea base, pasos para verificarla, criterios de aprobación, historial incluido, flujo de control de cambios y endpoints de la API.
+
 ## [1.0.0] – 2026-11-10 · Línea base del código fuente
 
 Primera versión estable del SIGR. A partir de aquí, cualquier cambio necesita una solicitud de cambio (issue), una rama propia y un pull request aprobado.
