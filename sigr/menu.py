@@ -41,7 +41,8 @@ def listar_platos():
 def _validar_plato(datos):
     if not (datos.get("nombre") or "").strip():
         return "El nombre es obligatorio"
-    if not isinstance(datos.get("precio"), int) or datos["precio"] <= 0:
+    precio = datos.get("precio")
+    if not isinstance(precio, int) or isinstance(precio, bool) or precio <= 0:
         return "El precio debe ser un entero mayor que cero"
     if not get_db().execute("SELECT 1 FROM categorias WHERE id = ?", (datos.get("categoria_id"),)).fetchone():
         return "La categoría no existe"
