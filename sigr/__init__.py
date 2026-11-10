@@ -3,7 +3,7 @@ import os
 import click
 from flask import Flask, jsonify
 
-from . import auth, db, menu
+from . import auth, db, menu, pedidos
 
 __version__ = "0.1.0"
 
@@ -18,7 +18,7 @@ def create_app(config=None):
         app.config.update(config)
 
     app.teardown_appcontext(db.close_db)
-    for blueprint in (auth.bp, menu.bp):
+    for blueprint in (auth.bp, menu.bp, pedidos.bp):
         app.register_blueprint(blueprint)
 
     @app.cli.command("init-db")
