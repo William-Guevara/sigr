@@ -5,7 +5,7 @@ from flask import Flask, jsonify
 
 from . import auth, caja, db, menu, pedidos, reservas
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 
 def create_app(config=None):
