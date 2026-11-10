@@ -73,6 +73,18 @@ class IntegracionSIGR(unittest.TestCase):
         self.assertEqual(self.client.delete(f"/menu/platos/{plato_id}", headers=self.admin).status_code, 204)
         self.assertEqual(self.client.get("/menu/platos").json, [])
 
+    def test_crud_de_categorias(self):
+        categoria_id = self._post("/menu/categorias", self.admin, {"nombre": "Bebidas"}).json["id"]
+        renombrada = self.client.put(f"/menu/categorias/{categoria_id}", headers=self.admin,
+                                     json={"nombre": "Bebidas frías"})
+        self.assertEqual(renombrada.status_code, 200)
+        self.assertEqual(self.client.get("/menu/categorias").json[0]["nombre"], "Bebidas frías")
+        self._post("/menu/platos", self.admin, {"categoria_id": categoria_id, "nombre": "Limonada", "precio": 6000})
+        con_platos = self.client.delete(f"/menu/categorias/{categoria_id}", headers=self.admin)
+        self.assertEqual(con_platos.status_code, 409)
+        vacia = self._post("/menu/categorias", self.admin, {"nombre": "Postres"}).json["id"]
+        self.assertEqual(self.client.delete(f"/menu/categorias/{vacia}", headers=self.admin).status_code, 204)
+
     # --- pedidos ---
     def test_flujo_completo_de_un_pedido(self):
         plato_id = self._crear_plato(precio=20000)

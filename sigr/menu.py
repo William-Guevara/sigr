@@ -26,6 +26,39 @@ def crear_categoria():
     return jsonify(id=cursor.lastrowid, nombre=nombre), 201
 
 
+@bp.put("/categorias/<int:categoria_id>")
+@requiere_rol("administrador")
+def renombrar_categoria(categoria_id):
+    nombre = ((request.get_json(silent=True) or {}).get("nombre") or "").strip()
+    if not nombre:
+        return jsonify(error="El nombre es obligatorio"), 400
+    db = get_db()
+    repetida = db.execute(
+        "SELECT 1 FROM categorias WHERE nombre = ? AND id <> ?", (nombre, categoria_id)
+    ).fetchone()
+    if repetida:
+        return jsonify(error="La categoría ya existe"), 409
+    cursor = db.execute("UPDATE categorias SET nombre = ? WHERE id = ?", (nombre, categoria_id))
+    db.commit()
+    if cursor.rowcount == 0:
+        return jsonify(error="Categoría no encontrada"), 404
+    return jsonify(id=categoria_id, nombre=nombre)
+
+
+@bp.delete("/categorias/<int:categoria_id>")
+@requiere_rol("administrador")
+def eliminar_categoria(categoria_id):
+    """Solo se elimina una categoría sin platos, para no dejar platos huérfanos."""
+    db = get_db()
+    if db.execute("SELECT 1 FROM platos WHERE categoria_id = ?", (categoria_id,)).fetchone():
+        return jsonify(error="La categoría tiene platos asociados"), 409
+    cursor = db.execute("DELETE FROM categorias WHERE id = ?", (categoria_id,))
+    db.commit()
+    if cursor.rowcount == 0:
+        return jsonify(error="Categoría no encontrada"), 404
+    return "", 204
+
+
 @bp.get("/platos")
 def listar_platos():
     """Menú digital: solo platos activos, opcionalmente filtrados por categoría."""
