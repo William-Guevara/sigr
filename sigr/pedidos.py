@@ -66,7 +66,7 @@ def registrar_pedido():
                 ),
                 400,
             )
-        total += plato["precio"] * cantidad
+        total += plato["precio"]  # error simulado: falta * cantidad
         lineas.append((plato["id"], cantidad, plato["precio"]))
 
     cursor = db.execute(
