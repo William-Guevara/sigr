@@ -14,11 +14,14 @@ TOKEN_MAX_AGE = 8 * 3600  # un turno de trabajo
 
 
 def _serializer():
-    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt="sigr-auth")
+    return URLSafeTimedSerializer(
+        current_app.config["SECRET_KEY"], salt="sigr-auth"
+    )
 
 
 def requiere_rol(*roles):
-    """Exige un token válido y, si se indican roles, que el usuario tenga uno de ellos."""
+    """Exige un token válido y, si se indican roles, que el usuario
+    tenga uno de ellos."""
 
     def decorador(vista):
         @wraps(vista)
@@ -27,7 +30,9 @@ def requiere_rol(*roles):
             if not cabecera.startswith("Bearer "):
                 return jsonify(error="Token requerido"), 401
             try:
-                datos = _serializer().loads(cabecera[7:], max_age=TOKEN_MAX_AGE)
+                datos = _serializer().loads(
+                    cabecera[7:], max_age=TOKEN_MAX_AGE
+                )
             except BadSignature:  # incluye SignatureExpired
                 return jsonify(error="Token inválido o vencido"), 401
             if roles and datos["rol"] not in roles:
@@ -43,7 +48,8 @@ def requiere_rol(*roles):
 def crear_usuario(nombre, email, password, rol):
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO usuarios (nombre, email, password_hash, rol) VALUES (?, ?, ?, ?)",
+        "INSERT INTO usuarios (nombre, email, password_hash, rol)"
+        " VALUES (?, ?, ?, ?)",
         (nombre, email.lower(), generate_password_hash(password), rol),
     )
     db.commit()
@@ -51,12 +57,20 @@ def crear_usuario(nombre, email, password, rol):
 
 
 def _validar_datos_usuario(datos):
-    faltantes = [c for c in ("nombre", "email", "password") if not datos.get(c)]
+    faltantes = [
+        c for c in ("nombre", "email", "password") if not datos.get(c)
+    ]
     if faltantes:
         return f"Faltan campos: {', '.join(faltantes)}"
     if len(datos["password"]) < 8:
         return "La contraseña debe tener al menos 8 caracteres"
-    if get_db().execute("SELECT 1 FROM usuarios WHERE email = ?", (datos["email"].lower(),)).fetchone():
+    if (
+        get_db()
+        .execute(
+            "SELECT 1 FROM usuarios WHERE email = ?", (datos["email"].lower(),)
+        )
+        .fetchone()
+    ):
         return "Ya existe un usuario con ese correo"
     return None
 
@@ -68,7 +82,9 @@ def registro():
     error = _validar_datos_usuario(datos)
     if error:
         return jsonify(error=error), 400
-    usuario_id = crear_usuario(datos["nombre"], datos["email"], datos["password"], "cliente")
+    usuario_id = crear_usuario(
+        datos["nombre"], datos["email"], datos["password"], "cliente"
+    )
     return jsonify(id=usuario_id, rol="cliente"), 201
 
 
@@ -82,18 +98,27 @@ def crear_personal():
         error = f"Rol inválido, use uno de: {', '.join(ROLES)}"
     if error:
         return jsonify(error=error), 400
-    usuario_id = crear_usuario(datos["nombre"], datos["email"], datos["password"], datos["rol"])
+    usuario_id = crear_usuario(
+        datos["nombre"], datos["email"], datos["password"], datos["rol"]
+    )
     return jsonify(id=usuario_id, rol=datos["rol"]), 201
 
 
 @bp.post("/login")
 def login():
     datos = request.get_json(silent=True) or {}
-    usuario = get_db().execute(
-        "SELECT id, nombre, password_hash, rol FROM usuarios WHERE email = ?",
-        (str(datos.get("email", "")).lower(),),
-    ).fetchone()
-    if usuario is None or not check_password_hash(usuario["password_hash"], datos.get("password", "")):
+    usuario = (
+        get_db()
+        .execute(
+            "SELECT id, nombre, password_hash, rol FROM usuarios"
+            " WHERE email = ?",
+            (str(datos.get("email", "")).lower(),),
+        )
+        .fetchone()
+    )
+    if usuario is None or not check_password_hash(
+        usuario["password_hash"], datos.get("password", "")
+    ):
         return jsonify(error="Credenciales incorrectas"), 401
     token = _serializer().dumps({"id": usuario["id"], "rol": usuario["rol"]})
     return jsonify(token=token, rol=usuario["rol"], nombre=usuario["nombre"])

@@ -11,6 +11,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - `requirements-dev.txt` con las herramientas del pipeline y `setup.cfg` con la configuración de flake8 y pytest.
 
 ### Cambiado
+- Código y pruebas ajustados al límite de 79 caracteres de PEP 8 (pendiente registrado en la v1.0.0), ahora verificado por flake8 en el pipeline.
 - README orientado a la entrega del taller: identificación de la línea base, pasos para verificarla, criterios de aprobación, historial incluido, flujo de control de cambios y endpoints de la API.
 
 ## [1.0.0] – 2026-11-10 · Línea base del código fuente
