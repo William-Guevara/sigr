@@ -1,0 +1,193 @@
+# Pipeline CI/CD del SIGR.
+# Ramas: construye, analiza, prueba, revisa seguridad y empaqueta.
+# main: además despliega en staging y corre pruebas de humo y de carga.
+# Tags v*: además ejecuta el despliegue a producción (simulado).
+name: CI/CD SIGR
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Si llega un push nuevo a la misma rama, se cancela la ejecución anterior.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  IMAGEN: sigr:${{ github.sha }}
+
+jobs:
+  construccion:
+    name: 1. Construcción
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+      - name: Verificar que el código compila y la aplicación carga
+        run: |
+          python -m compileall -q sigr
+          python -c "from sigr import create_app, __version__; app = create_app(); print('SIGR', __version__, '-', len(list(app.url_map.iter_rules())), 'rutas registradas')"
+
+  analisis-estatico:
+    name: 2a. Análisis estático (PEP 8)
+    needs: construccion
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: flake8
+        run: flake8 . --count --statistics
+
+  pruebas:
+    name: 2b. Pruebas (Python ${{ matrix.python }})
+    needs: construccion
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Pruebas de integración con cobertura mínima del 80 %
+        run: >
+          pytest -v --cov=sigr --cov-report=term-missing
+          --cov-report=xml --cov-fail-under=80
+          --junitxml=reporte-pruebas.xml
+      - name: Publicar cobertura en el resumen
+        if: always() && matrix.python == '3.12'
+        run: |
+          echo "### Cobertura de pruebas" >> "$GITHUB_STEP_SUMMARY"
+          python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+      - name: Guardar reportes
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reportes-pruebas-py${{ matrix.python }}
+          path: |
+            reporte-pruebas.xml
+            coverage.xml
+
+  seguridad:
+    name: 2c. Seguridad (SAST y dependencias)
+    needs: construccion
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Bandit (análisis estático de seguridad)
+        run: bandit -r sigr --severity-level medium
+      - name: pip-audit (vulnerabilidades conocidas en dependencias)
+        run: pip-audit -r requirements.txt
+
+  empaquetado:
+    name: 3. Empaquetado (imagen Docker)
+    needs: [analisis-estatico, pruebas, seguridad]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Construir imagen
+        run: docker build -t "$IMAGEN" .
+      - name: Exportar imagen
+        run: docker save "$IMAGEN" | gzip > sigr-imagen.tar.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: imagen-sigr
+          path: sigr-imagen.tar.gz
+          retention-days: 5
+
+  staging:
+    name: 4. Despliegue a staging
+    needs: empaquetado
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: imagen-sigr
+      - name: Cargar imagen
+        run: gunzip -c sigr-imagen.tar.gz | docker load
+      - name: Generar credenciales temporales del ambiente
+        run: |
+          CLAVE=$(python -c "import secrets; print(secrets.token_urlsafe(16))")
+          LLAVE=$(python -c "import secrets; print(secrets.token_hex(32))")
+          echo "::add-mask::$CLAVE"
+          echo "::add-mask::$LLAVE"
+          echo "SIGR_ADMIN_PASSWORD=$CLAVE" >> "$GITHUB_ENV"
+          echo "SIGR_SECRET_KEY=$LLAVE" >> "$GITHUB_ENV"
+      - name: Desplegar contenedor
+        run: |
+          docker run -d --name sigr-staging -p 8000:8000 \
+            -e SIGR_SECRET_KEY "$IMAGEN"
+      - name: Esperar a que el contenedor esté saludable
+        run: |
+          for i in $(seq 1 30); do
+            estado=$(docker inspect -f '{{.State.Health.Status}}' sigr-staging)
+            echo "Intento $i: $estado"
+            [ "$estado" = "healthy" ] && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Crear administrador de staging
+        run: >
+          docker exec sigr-staging flask --app sigr auth crear-admin
+          admin@sigr.co --password "$SIGR_ADMIN_PASSWORD"
+      - name: Prueba de humo (flujo crítico por la API)
+        run: python scripts/smoke_test.py http://localhost:8000
+      - name: Prueba de carga (requisito de rendimiento)
+        run: python scripts/prueba_carga.py http://localhost:8000
+      - name: Registros del contenedor si algo falla
+        if: failure()
+        run: docker logs sigr-staging
+      - name: Retirar el ambiente
+        if: always()
+        run: docker rm -f sigr-staging
+
+  produccion:
+    name: 5. Despliegue a producción (simulado)
+    needs: staging
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: produccion
+    steps:
+      - name: Publicar imagen en el registro (simulado)
+        run: |
+          echo "docker tag $IMAGEN registro.ejemplo.co/sigr:${GITHUB_REF_NAME}"
+          echo "docker push registro.ejemplo.co/sigr:${GITHUB_REF_NAME}"
+      - name: Actualizar el servicio en producción (simulado)
+        run: |
+          echo "Despliegue de ${GITHUB_REF_NAME} con estrategia rolling update"
+          echo "Verificación posterior: GET /salud debe responder 200"
+          echo "Si falla, se vuelve a desplegar el tag anterior (rollback)"

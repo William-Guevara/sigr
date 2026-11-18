@@ -3,3 +3,7 @@ __pycache__/
 .venv/
 *.db
 .env
+.coverage
+coverage.xml
+reporte-pruebas.xml
+*.tar.gz

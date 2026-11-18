@@ -5,13 +5,15 @@ from flask import Flask, jsonify
 
 from . import auth, caja, db, menu, pedidos, reservas
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 def create_app(config=None):
     app = Flask(__name__)
     app.config.update(
-        SECRET_KEY=os.environ.get("SIGR_SECRET_KEY", "dev-cambiar-en-produccion"),
+        SECRET_KEY=os.environ.get(
+            "SIGR_SECRET_KEY", "dev-cambiar-en-produccion"
+        ),
         DATABASE=os.environ.get("SIGR_DATABASE", "sigr.db"),
     )
     if config:

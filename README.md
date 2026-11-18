@@ -4,6 +4,7 @@
 > Universidad Tecnológica del Oriente · Ingeniería de Software · Gestión del Software 20262 – N6 Gr B
 > Docente: Ing. Carlos Carrascal Avendaño · Desarrollado por: William Augusto Guevara Bocanegra (trabajo individual)
 
+[![CI/CD SIGR](https://github.com/William-Guevara/sigr/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/William-Guevara/sigr/actions/workflows/ci-cd.yml)
 ![Versión](https://img.shields.io/badge/l%C3%ADnea%20base-v1.0.0-blue)
 ![Pruebas](https://img.shields.io/badge/pruebas-10%20de%2010%20OK-brightgreen)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)
@@ -149,7 +150,44 @@ flowchart LR
 
 Este mismo README se actualizó siguiendo ese flujo: el cambio se hizo en la rama `docs/readme-entrega` y se integró por pull request, sin tocar el tag `v1.0.0`.
 
-## 8. Ejecutar el sistema
+## 8. Pipeline CI/CD (Unidad 3)
+
+> **Proyecto integrador AA2 · Unidad 3 (Automatización y entrega continua)**
+
+Cada push ejecuta [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) en GitHub Actions:
+
+```mermaid
+flowchart LR
+    A[push] --> B[1. Construcción]
+    B --> C[2a. flake8]
+    B --> D[2b. Pruebas 3.11 / 3.12 / 3.13]
+    B --> E[2c. Bandit + pip-audit]
+    C & D & E --> F[3. Imagen Docker]
+    F -->|solo main y tags| G[4. Staging: humo + carga]
+    G -->|solo tags v*| H[5. Producción simulada]
+```
+
+| Etapa | Qué valida | Si falla |
+|---|---|---|
+| 1. Construcción | Dependencias instaladas, código compila, la aplicación carga | No sigue nada |
+| 2a. Análisis estático | PEP 8 (79 caracteres) con flake8 | No se empaqueta |
+| 2b. Pruebas | 10 pruebas de integración y cobertura ≥ 80 % en tres versiones de Python | No se empaqueta |
+| 2c. Seguridad | Bandit (código) y pip-audit (dependencias) | No se empaqueta |
+| 3. Empaquetado | La imagen Docker se construye | No se despliega |
+| 4. Staging | Contenedor saludable, prueba de humo del flujo crítico y prueba de carga (p95 < 500 ms, 0 errores) | No se promueve a producción |
+| 5. Producción | Simulado: publicación de la imagen y despliegue del tag | Rollback al tag anterior |
+
+Para correr las mismas validaciones en local:
+
+```bash
+pip install -r requirements-dev.txt
+flake8 . --count --statistics
+pytest --cov=sigr --cov-fail-under=80
+bandit -r sigr --severity-level medium
+pip-audit -r requirements.txt
+```
+
+## 9. Ejecutar el sistema
 
 Requisitos: Python 3.11 o superior.
 

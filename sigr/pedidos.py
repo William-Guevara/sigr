@@ -18,7 +18,9 @@ TRANSICIONES = {
 
 def _pedido_con_items(pedido_id):
     db = get_db()
-    pedido = db.execute("SELECT * FROM pedidos WHERE id = ?", (pedido_id,)).fetchone()
+    pedido = db.execute(
+        "SELECT * FROM pedidos WHERE id = ?", (pedido_id,)
+    ).fetchone()
     if pedido is None:
         return None
     items = db.execute(
@@ -46,12 +48,24 @@ def registrar_pedido():
     for item in items:
         cantidad = item.get("cantidad")
         if not isinstance(cantidad, int) or cantidad <= 0:
-            return jsonify(error="Cada plato necesita una cantidad mayor que cero"), 400
+            return (
+                jsonify(
+                    error="Cada plato necesita una cantidad mayor que cero"
+                ),
+                400,
+            )
         plato = db.execute(
-            "SELECT id, precio FROM platos WHERE id = ? AND activo = 1", (item.get("plato_id"),)
+            "SELECT id, precio FROM platos WHERE id = ? AND activo = 1",
+            (item.get("plato_id"),),
         ).fetchone()
         if plato is None:
-            return jsonify(error=f"El plato {item.get('plato_id')} no existe o no está en el menú"), 400
+            return (
+                jsonify(
+                    error=f"El plato {item.get('plato_id')} no existe"
+                    " o no está en el menú"
+                ),
+                400,
+            )
         total += plato["precio"] * cantidad
         lineas.append((plato["id"], cantidad, plato["precio"]))
 
@@ -60,7 +74,9 @@ def registrar_pedido():
         (datos["mesa"], g.usuario["id"], total),
     )
     db.executemany(
-        "INSERT INTO pedido_items (pedido_id, plato_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)",
+        "INSERT INTO pedido_items"
+        " (pedido_id, plato_id, cantidad, precio_unitario)"
+        " VALUES (?, ?, ?, ?)",
         [(cursor.lastrowid, *linea) for linea in lineas],
     )
     db.commit()
@@ -70,13 +86,21 @@ def registrar_pedido():
 @bp.get("")
 @requiere_rol("mesero", "administrador")
 def listar_pedidos():
-    """Seguimiento de pedidos: la vista de cocina y meseros consulta este listado por estado."""
-    consulta = "SELECT id, mesa, estado, total, creado_en, actualizado_en FROM pedidos"
+    """Seguimiento de pedidos: la vista de cocina y meseros consulta este
+    listado por estado."""
+    consulta = (
+        "SELECT id, mesa, estado, total, creado_en, actualizado_en"
+        " FROM pedidos"
+    )
     parametros = []
     if request.args.get("estado"):
         consulta += " WHERE estado = ?"
         parametros.append(request.args["estado"])
-    filas = get_db().execute(consulta + " ORDER BY creado_en, id", parametros).fetchall()
+    filas = (
+        get_db()
+        .execute(consulta + " ORDER BY creado_en, id", parametros)
+        .fetchall()
+    )
     return jsonify([dict(f) for f in filas])
 
 
@@ -94,13 +118,21 @@ def ver_pedido(pedido_id):
 def cambiar_estado(pedido_id):
     nuevo = (request.get_json(silent=True) or {}).get("estado")
     db = get_db()
-    pedido = db.execute("SELECT estado FROM pedidos WHERE id = ?", (pedido_id,)).fetchone()
+    pedido = db.execute(
+        "SELECT estado FROM pedidos WHERE id = ?", (pedido_id,)
+    ).fetchone()
     if pedido is None:
         return jsonify(error="Pedido no encontrado"), 404
     if nuevo not in TRANSICIONES.get(pedido["estado"], set()):
-        return jsonify(error=f"No se puede pasar de '{pedido['estado']}' a '{nuevo}'"), 409
+        return (
+            jsonify(
+                error=f"No se puede pasar de '{pedido['estado']}' a '{nuevo}'"
+            ),
+            409,
+        )
     db.execute(
-        "UPDATE pedidos SET estado = ?, actualizado_en = datetime('now', 'localtime') WHERE id = ?",
+        "UPDATE pedidos SET estado = ?,"
+        " actualizado_en = datetime('now', 'localtime') WHERE id = ?",
         (nuevo, pedido_id),
     )
     db.commit()
