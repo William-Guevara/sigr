@@ -4,6 +4,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+## [1.1.0] – 2026-11-17 · Pipeline CI/CD
+
+Cambio evolutivo tramitado en la rama `feature/pipeline-ci-cd` e integrado por pull request. La línea base `v1.0.0` no se modifica.
+
 ### Agregado
 - Pipeline CI/CD en GitHub Actions (`.github/workflows/ci-cd.yml`): construcción, análisis estático con flake8, pruebas con cobertura mínima del 80 % en Python 3.11, 3.12 y 3.13, análisis de seguridad con Bandit y pip-audit, imagen Docker, despliegue a staging con pruebas de humo y de carga, y despliegue a producción simulado para los tags.
 - `Dockerfile` con usuario sin privilegios y verificación de salud (`HEALTHCHECK`).
