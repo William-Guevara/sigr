@@ -4,6 +4,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+### Agregado
+- Pipeline CI/CD en GitHub Actions (`.github/workflows/ci-cd.yml`): construcción, análisis estático con flake8, pruebas con cobertura mínima del 80 % en Python 3.11, 3.12 y 3.13, análisis de seguridad con Bandit y pip-audit, imagen Docker, despliegue a staging con pruebas de humo y de carga, y despliegue a producción simulado para los tags.
+- `Dockerfile` con usuario sin privilegios y verificación de salud (`HEALTHCHECK`).
+- `scripts/smoke_test.py` y `scripts/prueba_carga.py` para validar el ambiente desplegado.
+- `requirements-dev.txt` con las herramientas del pipeline y `setup.cfg` con la configuración de flake8 y pytest.
+
 ### Cambiado
 - README orientado a la entrega del taller: identificación de la línea base, pasos para verificarla, criterios de aprobación, historial incluido, flujo de control de cambios y endpoints de la API.
 
